@@ -1,18 +1,22 @@
-package com.auth.auth_app.Service;
+package com.auth.auth_app.Service.impl;
 
 import com.auth.auth_app.Dto.UserDto;
+import com.auth.auth_app.Service.UserService;
 import com.auth.auth_app.entities.Provider;
 import com.auth.auth_app.entities.User;
 import com.auth.auth_app.exception.ResourceNotFoundException;
+import com.auth.auth_app.helper.UserHelper;
 import com.auth.auth_app.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl implements  UserService{
+public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private  final ModelMapper modelMapper;
@@ -25,7 +29,7 @@ public class UserServiceImpl implements  UserService{
          throw new IllegalArgumentException("Email is required");
      }
      if(userRepository.existsByEmail(userDto.getEmail())){
-         throw new IllegalArgumentException("Email already exists");
+         throw new IllegalArgumentException("User with given email already exists");
      }
         // if you have extra checks ....put here
 
@@ -47,23 +51,44 @@ public class UserServiceImpl implements  UserService{
 
     @Override
     public UserDto updateUser(UserDto userDto, String userId) {
-        return null;
+        UUID uId = UserHelper.parseUUID(userId);
+        User existingUser = userRepository
+                .findById(uId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with given id"));
+        //we are not going to change email id for this project.
+        if (userDto.getName() != null) existingUser.setName(userDto.getName());
+        if (userDto.getImage() != null) existingUser.setImage(userDto.getImage());
+        if (userDto.getProvider() != null) existingUser.setProvider(userDto.getProvider());
+        //TODO: change password updation logic...
+        if (userDto.getPassword() != null) existingUser.setPassword(userDto.getPassword());
+        existingUser.setEnable(userDto.isEnable());
+
+        User updatedUser = userRepository.save(existingUser);
+        return modelMapper.map(updatedUser, UserDto.class);
     }
 
     @Override
     public void deleteUser(String userId) {
+        UUID uId = UserHelper.parseUUID(userId);
+        User user =userRepository.findById(uId).orElseThrow(()-> new ResourceNotFoundException("User not found"));
+        userRepository.delete(user);
+
 
     }
 
     @Override
     public UserDto getUserById(String userId) {
-        return null;
+        User user = userRepository.findById(UserHelper.parseUUID(userId)).orElseThrow(()-> new ResourceNotFoundException("User not found"));
+
+        return modelMapper.map(user , UserDto.class);
     }
 
     @Override
     @Transactional
     public Iterable<UserDto> getAllUsers() {
         return userRepository
-                .findAll().stream().map( user-> modelMapper.map(user ,UserDto.class)).toList();
+                .findAll().stream()
+                .map( user-> modelMapper.map(user ,UserDto.class))
+                .toList();
     }
 }
